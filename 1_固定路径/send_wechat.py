@@ -72,6 +72,6 @@ if __name__ == '__main__':
     time.sleep(3)
     
     target_contact = "vl"
-    msg_content = "你好"
+    msg_content = "这是一个测试消息"
     
     send_wechat_message(target_contact, msg_content)

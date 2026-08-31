@@ -2,6 +2,13 @@ import pygame
 import random
 import time
 import os
+import ctypes
+
+# 禁用 Windows DPI 缩放，保持 1:1 像素分辨率，防止图像被系统放大导致 pyautogui 识别失败
+try:
+    ctypes.windll.user32.SetProcessDPIAware()
+except Exception:
+    pass
 
 # 初始化 Pygame
 pygame.init()
@@ -27,6 +34,49 @@ STATE_VISIBLE = 1
 STATE_HIDDEN = 2
 HIDE_DURATION = 200 # 消失后的等待时间(毫秒)
 
+# 爆头特效相关类
+class Particle:
+    def __init__(self, x, y):
+        self.x = x
+        self.y = y
+        self.vx = random.uniform(-5, 5)
+        self.vy = random.uniform(-10, -3)
+        self.radius = random.randint(4, 8)
+        self.color = random.choice([(255, 0, 0), (220, 20, 20), (255, 69, 0)]) # 红色/橙红色爆头效果
+        self.life = 255
+        
+    def update(self):
+        self.x += self.vx
+        self.y += self.vy
+        self.vy += 0.8 # 重力加速度
+        self.life -= 12 # 衰减速度
+        
+    def draw(self, surface):
+        if self.life > 0:
+            surf = pygame.Surface((self.radius * 2, self.radius * 2), pygame.SRCALPHA)
+            pygame.draw.circle(surf, (*self.color, max(0, int(self.life))), (self.radius, self.radius), self.radius)
+            surface.blit(surf, (int(self.x - self.radius), int(self.y - self.radius)))
+
+class FloatingText:
+    def __init__(self, text, x, y, color, font):
+        self.text = text
+        self.x = x
+        self.y = y
+        self.vy = -2
+        self.life = 255
+        self.color = color
+        self.font = font
+        
+    def update(self):
+        self.y += self.vy
+        self.life -= 8
+        
+    def draw(self, surface):
+        if self.life > 0:
+            text_surf = self.font.render(self.text, True, self.color)
+            text_surf.set_alpha(max(0, int(self.life)))
+            surface.blit(text_surf, (self.x, self.y))
+
 # 地洞位置定义 (3x3 网格)
 HOLES = [
     (150, 250), (400, 250), (650, 250),
@@ -39,7 +89,11 @@ screen = pygame.display.set_mode((WIDTH, HEIGHT))
 pygame.display.set_caption("打地鼠 (Whack-a-Mole) - 精美版")
 
 # 加载资源
-current_dir = os.path.dirname(os.path.abspath(__file__))
+import sys
+if getattr(sys, 'frozen', False):
+    current_dir = sys._MEIPASS
+else:
+    current_dir = os.path.dirname(os.path.abspath(__file__))
 mole_image_path = os.path.join(current_dir, "mole.png")
 try:
     mole_image = pygame.image.load(mole_image_path)
@@ -104,6 +158,8 @@ def main():
     mole_state = STATE_VISIBLE
     current_hole_index = -1
     state_change_time = pygame.time.get_ticks()
+    
+    effects = [] # 用于存储所有的特效
 
     def spawn_mole():
         nonlocal current_hole_index, mole_state, state_change_time
@@ -143,6 +199,10 @@ def main():
                 if event.button == 1: # 左键点击
                     if mole_state == STATE_VISIBLE and mole_rect.collidepoint(event.pos):
                         score += 1
+                        # 产生爆头特效和加分文字
+                        for _ in range(15):
+                            effects.append(Particle(event.pos[0], event.pos[1]))
+                        effects.append(FloatingText("+1", event.pos[0] - 15, event.pos[1] - 30, (255, 215, 0), ui_font))
                         hide_mole() # 击中后立刻消失
             
             if event.type == pygame.KEYDOWN and game_over:
@@ -151,7 +211,16 @@ def main():
                     score = 0
                     start_time = time.time()
                     game_over = False
+                    effects.clear()
                     spawn_mole()
+                    
+            # 增加：游戏结束后点击鼠标也可以重新开始，避免部分中文输入法拦截键盘事件
+            if event.type == pygame.MOUSEBUTTONDOWN and game_over:
+                score = 0
+                start_time = time.time()
+                game_over = False
+                effects.clear()
+                spawn_mole()
 
         if not game_over:
             elapsed_time = time.time() - start_time
@@ -193,6 +262,13 @@ def main():
             if mole_state == STATE_VISIBLE:
                 screen.blit(mole_image, mole_rect)
             
+            # 绘制并更新特效
+            for effect in effects:
+                effect.update()
+                effect.draw(screen)
+            # 清理消亡的特效
+            effects[:] = [e for e in effects if e.life > 0]
+            
             # 5. 绘制顶部的 UI 面板
             draw_ui_panel(screen, score, remaining_time)
         else:
@@ -207,7 +283,7 @@ def main():
             
             # 闪烁的重新开始提示
             if (pygame.time.get_ticks() // 500) % 2 == 0:
-                draw_text("👉 按 'R' 键重新开始 👈", font, WHITE, screen, WIDTH//2, HEIGHT//2 + 100)
+                draw_text("👉 按 'R' 键或点击鼠标重新开始 👈", font, WHITE, screen, WIDTH//2, HEIGHT//2 + 100)
 
         pygame.display.flip()
         clock.tick(FPS)
