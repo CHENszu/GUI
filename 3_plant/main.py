@@ -4,8 +4,18 @@ import threading
 import json
 import os
 import ctypes
+import keyboard
 from select_region import select_game_region
 from qwen_agent import analyze_game_screen
+from sun_collector import SunCollector
+
+# 强制退出的全局热键处理函数
+def force_exit():
+    print("收到全局 Ctrl+C 热键，正在强制退出程序...")
+    os._exit(0)
+
+# 注册全局热键，任何时候按下 Ctrl+C 都会秒退
+keyboard.add_hotkey('ctrl+c', force_exit)
 
 # 修复 Windows 下的 DPI 缩放问题，防止坐标和窗口大小偏移
 try:
@@ -21,10 +31,10 @@ class App:
     def __init__(self, root):
         self.root = root
         self.root.title("🌻 植物大战僵尸 AI 助手")
-        self.root.geometry("500x500")
+        self.root.geometry("500x550")
         
         # 居中显示窗口
-        self.center_window(500, 500)
+        self.center_window(500, 550)
         
         # 标题
         self.lbl_title = ctk.CTkLabel(root, text="植物大战僵尸 AI 助手", 
@@ -46,6 +56,13 @@ class App:
                                        font=ctk.CTkFont(family="Microsoft YaHei", size=14),
                                        command=self.on_start_game, width=160, height=40)
         self.btn_start.grid(row=0, column=1, padx=15)
+        
+        # 自动拾取阳光按钮
+        self.btn_sun = ctk.CTkButton(self.btn_frame, text="🌞 开启自动拾取", 
+                                     font=ctk.CTkFont(family="Microsoft YaHei", size=14),
+                                     command=self.toggle_sun_collector, width=350, height=40,
+                                     fg_color="#e67e22", hover_color="#d35400")
+        self.btn_sun.grid(row=1, column=0, columnspan=2, pady=(10, 0))
         
         # 状态标签
         self.status_var = tk.StringVar(value="状态: 待命")
@@ -71,6 +88,9 @@ class App:
 
         # 保存遮罩窗口的引用
         self.overlay_window = None
+        
+        # 阳光拾取器实例
+        self.sun_collector = SunCollector(status_callback=self.update_status)
 
         # 启动时加载保存的区域
         self.load_saved_region()
@@ -106,6 +126,14 @@ class App:
             self.hide_overlay()
         else:
             self.show_overlay()
+
+    def toggle_sun_collector(self):
+        if self.sun_collector.running:
+            self.sun_collector.stop()
+            self.btn_sun.configure(text="🌞 开启自动拾取", fg_color="#e67e22", hover_color="#d35400")
+        else:
+            self.sun_collector.start()
+            self.btn_sun.configure(text="⏸ 关闭自动拾取", fg_color="#7f8c8d", hover_color="#95a5a6")
 
     def show_overlay(self):
         config_path = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'region_config.json')
