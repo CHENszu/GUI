@@ -1,0 +1,33 @@
+{
+    "plants": {
+        "region": {
+            "top_left": {
+                "x": 867,
+                "y": 251
+            },
+            "bottom_right": {
+                "x": 1381,
+                "y": 321
+            },
+            "width": 514,
+            "height": 70
+        },
+        "count": 10
+    },
+    "lawn": {
+        "region": {
+            "top_left": {
+                "x": 820,
+                "y": 332
+            },
+            "bottom_right": {
+                "x": 1546,
+                "y": 806
+            },
+            "width": 726,
+            "height": 474
+        },
+        "rows": 5,
+        "cols": 9
+    }
+}
